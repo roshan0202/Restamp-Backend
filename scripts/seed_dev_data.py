@@ -197,6 +197,44 @@ def _get_or_create_postcode(conn, ins, locality_id, pincode):
                {"l": locality_id, "p": pincode})
 
 
+REAL_PROPERTY_IMAGES = {
+    "APARTMENT": [
+        "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=1000&q=80",
+    ],
+    "VILLA": [
+        "https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1000&q=80",
+    ],
+    "HOUSE": [
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1000&q=80",
+    ],
+    "PLOT": [
+        "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1524813686514-a57563d77d61?auto=format&fit=crop&w=1000&q=80",
+    ],
+    "COMMERCIAL": [
+        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1000&q=80",
+        "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1000&q=80",
+    ],
+}
+
+
+def _get_seed_image(ptype: str, lid: int, order: int) -> str:
+    pool = REAL_PROPERTY_IMAGES.get(ptype, REAL_PROPERTY_IMAGES["APARTMENT"])
+    return pool[(lid + order) % len(pool)]
+
+
 def _insert_spec(conn, ins, owner, pc_id, spec):
     """Insert one (physical + listing + media) spec; skip when title exists.
 
@@ -225,7 +263,7 @@ def _insert_spec(conn, ins, owner, pc_id, spec):
     for i in range(nmedia):
         ins("INSERT INTO property_media (property_listing_id, url, media_type, order_index) "
             "VALUES (:l, :u, 'image', :o)",
-            {"l": lid, "u": f"https://seed.local/{lid}-{i}.jpg", "o": i})
+            {"l": lid, "u": _get_seed_image(ptype, lid, i), "o": i})
     return lid
 
 
@@ -333,7 +371,7 @@ def seed(conn):
         for i in range(nmedia):
             ins("INSERT INTO property_media (property_listing_id, url, media_type, order_index) "
                 "VALUES (:l, :u, 'image', :o)",
-                {"l": lid, "u": f"https://seed.local/{lid}-{i}.jpg", "o": i})
+                {"l": lid, "u": _get_seed_image(ptype, lid, i), "o": i})
         listing_ids.append(lid)
 
     # Home batch on the same village (fresh installs get everything at once).
