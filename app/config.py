@@ -37,6 +37,10 @@ class Settings:
     OTP_BLOCK_SECONDS: int = _get_int("RESTAMP_OTP_BLOCK_SECONDS", 900)
     # When "1", OTP responses include the code (LOCAL DEV + TESTS ONLY).
     OTP_DEBUG: bool = _get("RESTAMP_OTP_DEBUG", "0") == "1"
+    OTP_DEMO_MODE: bool = _get("RESTAMP_OTP_DEMO_MODE", "0") == "1"
+    # LOCAL DEMO ONLY: when "1", a fixed set of demo OTPs is accepted by
+    # verify_code (a prior OTP request must still exist). Absent/disabled:
+    # no effect whatsoever (production behavior unchanged).
 
     # Google verification. Real verification needs GOOGLE_CLIENT_ID and a real
     # verifier; dev mode accepts only synthetic "dev:<subject>" tokens.

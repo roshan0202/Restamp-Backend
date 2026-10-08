@@ -19,6 +19,14 @@ from ..config import settings
 
 log = logging.getLogger("restamp.otp")
 
+# LOCAL DEMO ONLY: fixed six-digit codes accepted by verify_code when
+# RESTAMP_OTP_DEMO_MODE=1 (and only then). Never returned, displayed, or
+# logged anywhere; a prior unexpired OTP request is still required.
+DEMO_OTPS = frozenset({
+    "297569", "109745", "583214", "741806", "426391",
+    "835027", "614958", "372640", "958163", "205874",
+})
+
 
 class OTPProvider:
     def send(self, phone: str, code: str) -> None:
@@ -97,6 +105,13 @@ class OTPService:
             if entry is None or time.time() > entry.expires_at:
                 self._codes.pop(phone, None)
                 return False
+            # LOCAL DEMO ONLY: accept a fixed demo code in place of the
+            # issued code, provided demo mode is enabled and a live OTP
+            # request exists. Consumes the entry like a normal success and
+            # never counts as a wrong attempt. No effect when disabled.
+            if settings.OTP_DEMO_MODE and code in DEMO_OTPS:
+                self._codes.pop(phone, None)
+                return True
             if not secrets.compare_digest(entry.code_hash, self._hash(phone, code)):
                 entry.attempts += 1
                 if entry.attempts >= settings.OTP_MAX_VERIFY_ATTEMPTS:
