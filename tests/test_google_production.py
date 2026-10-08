@@ -113,3 +113,98 @@ def test_rsa_tampered_signature_is_401(verifier, monkeypatch):
     with pytest.raises(HTTPException) as e:
         verifier.verify(_rsa_token(key))
     assert e.value.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/google/link (phone-session JWT + verified Google ID token)
+# Uses dev-mode "dev:<sub>" tokens (no CLIENT_ID in tests); production
+# verification path is covered by the RSA tests above.
+# ---------------------------------------------------------------------------
+
+from sqlalchemy import text as _sa_text
+from tests.conftest import auth_header as _auth_header
+
+
+def _phone_user(c, session, tag: str) -> str:
+    """Create a phone-registered user directly (no OTP flow dependency) and
+    return a Bearer JWT for it, mirroring otp_verify's registration."""
+    from app.security import create_access_token
+
+    uid = session.execute(_sa_text(
+        "INSERT INTO users (display_name) VALUES (:n)"), {"n": f"Link User {tag}"}
+    ).lastrowid
+    session.execute(_sa_text(
+        "INSERT INTO auth_identities (user_id, provider, provider_identifier) "
+        "VALUES (:u, 'phone', :p)"), {"u": uid, "p": f"+100000009{tag}"})
+    session.execute(_sa_text(
+        "INSERT INTO user_current_role (user_id, role) VALUES (:u, 'BUYER')"),
+        {"u": uid})
+    token, _ = create_access_token(uid, "BUYER")
+    return token
+
+
+def test_link_happy_path_then_google_login_works(client):
+    c, session = client
+    token = _phone_user(c, session, "01")
+    r = c.post("/auth/google/link", json={"id_token": "dev:g-link-1"},
+               headers=_auth_header(token))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "google" in body["providers"]
+    # The same Google identity now logs in directly.
+    r = c.post("/auth/google", json={"id_token": "dev:g-link-1"})
+    assert r.status_code == 200, r.text
+    assert r.json()["user_id"] == body["id"]
+
+
+def test_link_invalid_token_401(client):
+    c, session = client
+    token = _phone_user(c, session, "02")
+    r = c.post("/auth/google/link", json={"id_token": "garbage"},
+               headers=_auth_header(token))
+    assert r.status_code == 401, r.text
+
+
+def test_link_unauthenticated_401(client):
+    c, session = client
+    r = c.post("/auth/google/link", json={"id_token": "dev:g-link-x"})
+    assert r.status_code == 401, r.text
+
+
+def test_link_idempotent_same_user(client):
+    c, session = client
+    token = _phone_user(c, session, "03")
+    for _ in range(2):
+        r = c.post("/auth/google/link", json={"id_token": "dev:g-link-2"},
+                   headers=_auth_header(token))
+        assert r.status_code == 200, r.text
+    n = session.execute(_sa_text(
+        "SELECT COUNT(*) FROM auth_identities WHERE provider='google' "
+        # Dev verifier strips the "dev:" prefix; the stored subject is g-link-2.
+        "AND provider_identifier='g-link-2'")).fetchone()[0]
+    assert n == 1
+
+
+def test_link_cross_user_409(client):
+    c, session = client
+    token_a = _phone_user(c, session, "04")
+    token_b = _phone_user(c, session, "05")
+    r = c.post("/auth/google/link", json={"id_token": "dev:g-link-3"},
+               headers=_auth_header(token_a))
+    assert r.status_code == 200, r.text
+    r = c.post("/auth/google/link", json={"id_token": "dev:g-link-3"},
+               headers=_auth_header(token_b))
+    assert r.status_code == 409, r.text
+    me = c.get("/auth/me", headers=_auth_header(token_b)).json()
+    assert "google" not in me["providers"]
+
+
+def test_me_providers_contains_google_after_link(client):
+    c, session = client
+    token = _phone_user(c, session, "06")
+    before = c.get("/auth/me", headers=_auth_header(token)).json()["providers"]
+    assert "google" not in before
+    c.post("/auth/google/link", json={"id_token": "dev:g-link-4"},
+           headers=_auth_header(token))
+    after = c.get("/auth/me", headers=_auth_header(token)).json()["providers"]
+    assert "google" in after

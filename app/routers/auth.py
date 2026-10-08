@@ -65,6 +65,36 @@ def google_auth(body: schemas.GoogleAuthIn, db: Session = Depends(get_db)):
     return _token_for(db, user.id)
 
 
+@router.post("/google/link", response_model=schemas.MeOut)
+def google_link(
+    body: schemas.GoogleAuthIn,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Link the caller's account to a Google identity.
+
+    The user_id comes exclusively from the Bearer session JWT (never the
+    body). The Google ID token is verified exactly like /auth/google
+    (fail-closed 401; the token itself is never logged or stored — only the
+    verified `sub` is persisted). Unknown-subject login via /auth/google is
+    untouched (still 404); cross-user links surface the service 409.
+    """
+    subject = google_svc.get_verifier().verify(body.id_token)
+    users_roles.link_identity(db, user.id, "google", subject, verified_by="google")
+    db.commit()
+    providers = [
+        r.provider
+        for r in db.query(AuthIdentity).filter(AuthIdentity.user_id == user.id).all()
+    ]
+    return schemas.MeOut(
+        id=user.id,
+        display_name=user.display_name,
+        role=users_roles.get_current_role(db, user.id),
+        providers=providers,
+        is_admin=users_roles.is_admin(db, user.id),
+    )
+
+
 @router.get("/me", response_model=schemas.MeOut)
 def me(db: Session = Depends(get_db), user=Depends(get_current_user)):
     providers = [
