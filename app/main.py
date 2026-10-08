@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import check_db
@@ -14,6 +15,7 @@ from .routers import buyer as buyer_router
 from .routers import health as health_router
 from .routers import owner as owner_router
 from .routers import users as users_router
+from .services import storage as storage_svc
 
 log = logging.getLogger("restamp")
 
@@ -78,6 +80,16 @@ def create_app() -> FastAPI:
     app.include_router(users_router.router)
     app.include_router(buyer_router.router)
     app.include_router(owner_router.router)
+
+    # Servable uploaded listing photos (local-dev storage; see storage.py).
+    # Never a source directory — RESTAMP_MEDIA_ROOT lives outside the repo.
+    # Mounted dir is <root>/listings so /media/<id>/<file> resolves exactly
+    # to the stored layout.
+    app.mount(
+        settings.MEDIA_URL_PREFIX,
+        StaticFiles(directory=str(storage_svc.ensure_listings_dir())),
+        name="media",
+    )
     return app
 
 

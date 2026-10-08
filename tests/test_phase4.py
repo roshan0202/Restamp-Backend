@@ -238,17 +238,20 @@ def test_patch_users_me_profile_update(client):
 
 
 def test_schema_regression_29_tables(client):
-    # Buyer V1 schema (Phase 6A, frozen decision): 28 + saved_properties.
+    # Drafts phase: 32 + listing_drafts.
     c, session = client
     tables = {
         r[0]
         for r in session.execute(
             text("SELECT TABLE_NAME FROM information_schema.TABLES "
-                 "WHERE TABLE_SCHEMA = DATABASE()")
+                  "WHERE TABLE_SCHEMA = DATABASE()")
         ).fetchall()
     } - {"alembic_version"}
-    assert len(tables) == 29
+    assert len(tables) == 33
     assert "saved_properties" in tables
+    assert "rent_terms" in tables
+    assert "amenity_master" in tables
+    assert "listing_amenities" in tables
     assert session.execute(text("SELECT version_num FROM alembic_version")).fetchone()[0] == (
-        "d4e5f6a7b8c9"
+        "d5e6f7a8b9c0"
     )

@@ -7,7 +7,7 @@ from .auth import AuthIdentity
 from .roles import UserCurrentRole, RoleHistory, AdminAccount
 from .locations import City, District, Taluk, Village, Locality, Postcode
 from .billing import Plan, Payment, PaymentWebhookEvent, Subscription, Entitlement
-from .properties import PhysicalProperty, PropertyListing, Verification, PropertyMedia, PropertyDocument
+from .properties import PhysicalProperty, PropertyListing, Verification, PropertyMedia, PropertyDocument, RentTerms, AmenityMaster, ListingAmenity, ListingDraft
 from .enquiries import Enquiry, ActiveEnquiry
 from .brokers import BrokerPostcodeAccessCurrent, BrokerPostcodeAccessHistory
 from .logs import ContactRevealAudit, ActivityLog, AuditLog
@@ -17,6 +17,7 @@ __all__ = [
     "City","District","Taluk","Village","Locality","Postcode",
     "Plan","Payment","PaymentWebhookEvent","Subscription","Entitlement",
     "PhysicalProperty","PropertyListing","Verification","PropertyMedia","PropertyDocument",
+    "RentTerms","AmenityMaster","ListingAmenity","ListingDraft",
     "Enquiry","ActiveEnquiry",
     "BrokerPostcodeAccessCurrent","BrokerPostcodeAccessHistory",
     "ContactRevealAudit","ActivityLog","AuditLog",

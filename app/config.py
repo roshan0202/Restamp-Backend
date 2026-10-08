@@ -47,6 +47,13 @@ class Settings:
     # Local CORS origins (comma-separated). Empty = built-in local defaults in main.py.
     CORS_ORIGINS: str = _get("RESTAMP_CORS_ORIGINS", "")
 
+    # Local media storage for listing photo uploads (see app/services/storage.py).
+    # Directory only; served at MEDIA_URL_PREFIX. Never inside the git repo.
+    # An S3/object-storage backend replaces storage.py without config changes
+    # beyond these two values.
+    MEDIA_ROOT: str = _get("RESTAMP_MEDIA_ROOT", "/tmp/restamp-media")
+    MEDIA_URL_PREFIX: str = "/media"
+
 
 settings = Settings()
 

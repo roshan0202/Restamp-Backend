@@ -66,3 +66,7 @@ cover/
 
 # Project reports
 report/
+
+# Uploaded listing media (local-dev storage; never commit user files)
+/media/
+/media-uploads/
