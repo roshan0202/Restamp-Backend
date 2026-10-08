@@ -58,6 +58,14 @@ class Settings:
     MEDIA_ROOT: str = _get("RESTAMP_MEDIA_ROOT", "/tmp/restamp-media")
     MEDIA_URL_PREFIX: str = "/media"
 
+    # Cloudinary (property photo uploads). Credentials come ONLY from the
+    # environment — never hardcoded, never logged. When CLOUDINARY_CLOUD_NAME
+    # is empty, photo uploads are treated as unconfigured (503).
+    CLOUDINARY_CLOUD_NAME: str = _get("CLOUDINARY_CLOUD_NAME", "")
+    CLOUDINARY_API_KEY: str = _get("CLOUDINARY_API_KEY", "")
+    CLOUDINARY_API_SECRET: str = _get("CLOUDINARY_API_SECRET", "")
+    CLOUDINARY_FOLDER: str = _get("CLOUDINARY_FOLDER", "restamp")
+
 
 settings = Settings()
 
