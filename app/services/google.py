@@ -12,7 +12,24 @@ development can exercise the flow honestly without pretending real Google auth w
 """
 from fastapi import HTTPException, status
 
+import jwt
+from jwt import PyJWKClient
+
 from ..config import settings
+
+
+_GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
+_GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
+
+_jwks_client: PyJWKClient | None = None
+
+
+def _get_jwks_client() -> PyJWKClient:
+    """Process-wide Google JWKS client (fetches and caches signing keys)."""
+    global _jwks_client
+    if _jwks_client is None:
+        _jwks_client = PyJWKClient(_GOOGLE_JWKS_URL)
+    return _jwks_client
 
 
 class GoogleVerifier:
@@ -36,17 +53,45 @@ class DevGoogleVerifier(GoogleVerifier):
 
 
 class ProductionGoogleVerifier(GoogleVerifier):
-    """Placeholder for a real Google ID-token verifier (needs client ID + JWKS).
+    """Real Google ID-token verifier (Google JWKS + PyJWT).
 
-    Deliberately unimplemented: wiring a fake "always valid" verifier would be
-    dishonest. Connect a real provider here in a later phase.
+    Validates the RS256 signature against Google's published certs and
+    enforces audience (our OAuth client ID), issuer, and expiration.
+    Returns the `sub` claim as the stable provider_identifier.
+    Any verification failure is a 401 in the existing auth error style;
+    fail-closed, no user creation here (router keeps the 404 rule).
     """
 
     def verify(self, id_token: str) -> str:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Google authentication is not configured",
-        )
+        if not id_token or not isinstance(id_token, str):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google credential"
+            )
+        try:
+            signing_key = _get_jwks_client().get_signing_key_from_jwt(id_token)
+            payload = jwt.decode(
+                id_token,
+                signing_key.key,
+                algorithms=["RS256"],
+                audience=settings.GOOGLE_CLIENT_ID,
+                issuer=_GOOGLE_ISSUERS,
+                options={"require": ["exp", "iss", "aud", "sub"]},
+            )
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Google credential has expired",
+            )
+        except jwt.PyJWTError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google credential"
+            )
+        subject = payload.get("sub")
+        if not subject:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google credential"
+            )
+        return subject
 
 
 def get_verifier() -> GoogleVerifier:
