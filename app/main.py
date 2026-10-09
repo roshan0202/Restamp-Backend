@@ -41,18 +41,18 @@ def _cors_origins() -> list[str]:
 async def lifespan(app: FastAPI):
     if settings.JWT_SECRET == "restamp-local-dev-secret-change-me":
         log.warning("Using default local JWT secret; override RESTAMP_JWT_SECRET outside local dev.")
-    # Fail fast when the database is unreachable at startup.
     if not check_db():
-        log.error("Database unreachable at startup.")
+        log.warning("Database unreachable at startup; continuing with in-memory auth for local development.")
     yield
-    # Engine disposal/pool cleanup on shutdown.
     from .db import engine
-
-    engine.dispose()
+    try:
+        engine.dispose()
+    except Exception:
+        pass
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.APP_NAME, version="4.0.0")
+    app = FastAPI(title=settings.APP_NAME, version="4.0.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins(),

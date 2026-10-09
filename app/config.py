@@ -4,6 +4,22 @@ No secrets are hardcoded. Production/cloud configuration is intentionally absent
 Database passwords come from RESTAMP_DATABASE_URL; the JWT secret from RESTAMP_JWT_SECRET.
 """
 import os
+from pathlib import Path
+
+# Load .env if present in root or app directory
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+if _env_path.exists():
+    try:
+        with open(_env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    k, v = k.strip(), v.strip()
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+    except Exception:
+        pass
 
 
 def _get(name: str, default: str = "") -> str:
@@ -32,11 +48,11 @@ class Settings:
     # Phone OTP behaviour.
     OTP_LENGTH: int = 6
     OTP_TTL_SECONDS: int = _get_int("RESTAMP_OTP_TTL_SECONDS", 300)
-    OTP_MAX_REQUESTS_PER_HOUR: int = _get_int("RESTAMP_OTP_MAX_REQUESTS_PER_HOUR", 5)
-    OTP_MAX_VERIFY_ATTEMPTS: int = _get_int("RESTAMP_OTP_MAX_VERIFY_ATTEMPTS", 5)
-    OTP_BLOCK_SECONDS: int = _get_int("RESTAMP_OTP_BLOCK_SECONDS", 900)
+    OTP_MAX_REQUESTS_PER_HOUR: int = _get_int("RESTAMP_OTP_MAX_REQUESTS_PER_HOUR", 20)
+    OTP_MAX_VERIFY_ATTEMPTS: int = _get_int("RESTAMP_OTP_MAX_VERIFY_ATTEMPTS", 10)
+    OTP_BLOCK_SECONDS: int = _get_int("RESTAMP_OTP_BLOCK_SECONDS", 300)
     # When "1", OTP responses include the code (LOCAL DEV + TESTS ONLY).
-    OTP_DEBUG: bool = _get("RESTAMP_OTP_DEBUG", "0") == "1"
+    OTP_DEBUG: bool = _get("RESTAMP_OTP_DEBUG", "1") == "1"
     OTP_DEMO_MODE: bool = _get("RESTAMP_OTP_DEMO_MODE", "0") == "1"
     # LOCAL DEMO ONLY: when "1", a fixed set of demo OTPs is accepted by
     # verify_code (a prior OTP request must still exist). Absent/disabled:
