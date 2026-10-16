@@ -9,10 +9,13 @@ Endpoints:
 No admin endpoints here; see users.py for admin grants.
 No schema changes; all writes use existing property_listings / physical_properties tables.
 """
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
 from .. import schemas
+from ..config import settings
 from ..db import get_db
 from ..deps import require_owner
 from ..services import owner_listings as owner_svc
@@ -122,6 +125,7 @@ def get_my_listing(
 @router.post("/listings/{listing_id}/photos", response_model=schemas.PhotoUploadOut, status_code=201)
 async def upload_listing_photo(
     listing_id: int,
+    request: Request,
     file: UploadFile = File(...),
     category: str = Form("Living Room"),
     db: Session = Depends(get_db),
@@ -163,10 +167,17 @@ async def upload_listing_photo(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Empty file")
 
     mime = file.content_type.split(";")[0].strip().lower()
+    is_local = not bool(settings.CLOUDINARY_CLOUD_NAME)
     try:
-        secure_url, public_id, byte_size = photo_storage.upload_listing_image(
-            listing_id, data, extension, mime
-        )
+        if is_local:
+            storage_name, byte_size = storage_svc.save_listing_image(listing_id, data, extension)
+            base_url = str(request.base_url).rstrip("/")
+            secure_url = f"{base_url}{settings.MEDIA_URL_PREFIX}/{storage_name}"
+            public_id = f"local:{storage_name}"
+        else:
+            secure_url, public_id, byte_size = photo_storage.upload_listing_image(
+                listing_id, data, extension, mime
+            )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except OSError:
@@ -183,12 +194,18 @@ async def upload_listing_photo(
         db.commit()
         db.refresh(media)
     except HTTPException:
-        photo_storage.delete_uploaded_image(public_id)
+        if is_local:
+            storage_svc.delete_stored_file(public_id.split("local:", 1)[1])
+        else:
+            photo_storage.delete_uploaded_image(public_id)
         db.rollback()
         raise
     except Exception:
         # DB failure after the upload landed: destroy the orphan, persist nothing.
-        photo_storage.delete_uploaded_image(public_id)
+        if is_local:
+            storage_svc.delete_stored_file(public_id.split("local:", 1)[1])
+        else:
+            photo_storage.delete_uploaded_image(public_id)
         db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Upload failed")
 
